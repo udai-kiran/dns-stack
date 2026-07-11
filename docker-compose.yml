@@ -1,0 +1,55 @@
+services:
+  unbound:
+    image: mvance/unbound:latest
+    container_name: unbound
+    restart: unless-stopped
+    networks:
+      dns_net:
+        ipv4_address: 172.30.0.2
+    volumes:
+      - ./unbound/unbound.conf:/opt/unbound/etc/unbound/unbound.conf:ro
+      - unbound_var:/opt/unbound/etc/unbound/var
+
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole
+    network_mode: host
+    restart: unless-stopped
+    depends_on:
+      - unbound
+    cap_add:
+      - NET_ADMIN
+    environment:
+      TZ: ${TZ:-Etc/UTC}
+      FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
+      FTLCONF_webserver_port: '5380o,[::]:5380o'
+      FTLCONF_dns_port: '5300'
+      FTLCONF_dns_upstreams: '172.30.0.2#5335'
+      FTLCONF_dns_listeningMode: 'all'
+      # Strip AAAA (IPv6) records from responses so clients only get IPv4 addresses.
+      # Queries for AAAA still happen and show up in logs - this only blocks the answer.
+      FTLCONF_misc_dnsmasq_lines: 'filter-AAAA'
+      # Both count and interval must be 0 to fully disable rate-limiting.
+      FTLCONF_dns_rateLimit_count: '0'
+      FTLCONF_dns_rateLimit_interval: '0'
+    volumes:
+      - pihole_etc:/etc/pihole
+      - pihole_dnsmasq:/etc/dnsmasq.d
+    healthcheck:
+      test: ["CMD-SHELL", "dig +short +norecurse +retry=0 -p 5300 @127.0.0.1 pi.hole || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+networks:
+  dns_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  pihole_etc:
+  pihole_dnsmasq:
+  unbound_var:
