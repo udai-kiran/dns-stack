@@ -1,0 +1,27 @@
+# Pi-hole gravity blocklists. One URL per line; '#' comments and blanks ignored.
+# Load with `make blocklists` after `make up` (idempotent - safe to re-run).
+# Pi-hole also refreshes these automatically via its built-in weekly cron.
+
+# ── OISD Big ─────────────────────────────────────────────────────────────────
+# Ads, trackers, malware, phishing, telemetry, cryptojacking, scam/spam.
+# Already consolidates many upstream lists (incl. Steven Black's sources).
+https://big.oisd.nl
+
+# ── Steven Black ─────────────────────────────────────────────────────────────
+# Consolidated hosts (adaway, mvps, malwaredomainlist, someonewhocares, ...).
+https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts
+
+# ── notracking ── DISABLED ───────────────────────────────────────────────────
+# Unmaintained (last updated 2022) and largely redundant with OISD.
+# Uncomment if you specifically want it.
+#https://raw.githubusercontent.com/notracking/hosts-blocklists/master/hostnames.txt
+
+# ── EasyList ── DISABLED ─────────────────────────────────────────────────────
+# Adblock-Plus *filter* list (cosmetic/URL-path rules) built for browser ad
+# blockers, not DNS. Pi-hole can only use its small domain subset and it risks
+# false positives. Prefer OISD for DNS-level ad blocking. Uncomment at your risk.
+#https://easylist.to/easylist/easylist.txt
+
+# ── NextDNS "Ads & Trackers" ── UNAVAILABLE ──────────────────────────────────
+# No public Pi-hole URL exists; it is served only inside NextDNS's resolver.
+# OISD + Steven Black above cover the same ground.

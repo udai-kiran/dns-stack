@@ -13,17 +13,23 @@ services:
   pihole:
     image: pihole/pihole:latest
     container_name: pihole
-    network_mode: host
+    # Share the tailscale container's network namespace (defined in the
+    # top-level compose). Pi-hole is reachable only on the tailnet IP and the
+    # internal dns_net bridge - never on the host's LAN interface.
+    network_mode: service:tailscale
     restart: unless-stopped
     depends_on:
-      - unbound
+      tailscale:
+        condition: service_healthy
+      unbound:
+        condition: service_started
     cap_add:
       - NET_ADMIN
     environment:
       TZ: ${TZ:-Etc/UTC}
       FTLCONF_webserver_api_password: ${PIHOLE_PASSWORD}
-      FTLCONF_webserver_port: '5380o,[::]:5380o'
-      FTLCONF_dns_port: '5300'
+      FTLCONF_webserver_port: '5380'
+      FTLCONF_dns_port: '53'
       FTLCONF_dns_upstreams: '172.30.0.2#5335'
       FTLCONF_dns_listeningMode: 'all'
       # Strip AAAA (IPv6) records from responses so clients only get IPv4 addresses.
@@ -32,11 +38,27 @@ services:
       # Both count and interval must be 0 to fully disable rate-limiting.
       FTLCONF_dns_rateLimit_count: '0'
       FTLCONF_dns_rateLimit_interval: '0'
+      # Pi-hole v6 ignores /etc/dnsmasq.d/*.conf unless this is enabled - needed
+      # to load the mounted safesearch.conf below.
+      FTLCONF_misc_etc_dnsmasq_d: 'true'
+      # Privacy: keep only 7 days of per-client query history in the long-term
+      # DB (default is 365). Set to 0 to disable the query DB entirely.
+      FTLCONF_database_maxDBdays: '7'
+      # Follow CNAME chains and block on any blocked target, so CNAME-cloaked
+      # trackers (analytics disguised as first-party subdomains) get caught.
+      FTLCONF_dns_CNAMEdeepInspect: 'true'
     volumes:
       - pihole_etc:/etc/pihole
       - pihole_dnsmasq:/etc/dnsmasq.d
+      # SafeSearch / YouTube Restricted Mode enforcement (version-controlled).
+      - ./pihole/safesearch.conf:/etc/dnsmasq.d/05-safesearch.conf:ro
+      # Local DNS records for this host's proxied apps (e.g. compass.infra).
+      - ./pihole/local-dns.conf:/etc/dnsmasq.d/06-local-dns.conf:ro
+      # Blocklists, seeded into gravity by `make blocklists`.
+      - ./pihole/adlists.list:/etc/pihole/infra-adlists.list:ro
+      - ./pihole/seed-adlists.sh:/usr/local/bin/seed-adlists.sh:ro
     healthcheck:
-      test: ["CMD-SHELL", "dig +short +norecurse +retry=0 -p 5300 @127.0.0.1 pi.hole || exit 1"]
+      test: ["CMD-SHELL", "dig +short +norecurse +retry=0 -p 53 @127.0.0.1 pi.hole || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
